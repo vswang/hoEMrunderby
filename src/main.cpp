@@ -29,6 +29,29 @@ enum class GameState {
   ERROR_STATE
 };
 
+
+// receiving the wireless signal
+typedef struct struct_message {
+    int velo;
+    bool swing;
+} struct_message;
+
+static bool swingSignal;
+static int velo;
+
+void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
+  memcpy(&myData, incomingData, sizeof(myData));
+  // Serial.print("Velocity: ");
+  // Serial.println(myData.velo);
+  // Serial.print("Swing: ");
+  // Serial.println(myData.swing);
+  // Serial.println();
+  velo = myData.velo;
+  swingSignal = myData.swing;
+}
+
+struct_message myData;
+
 static GameState state = GameState::IDLE;
 
 // edge detect for sensors
@@ -119,6 +142,15 @@ void setup() {
   Serial.begin(115200);
   delay(2000);
 
+  // Set device as a Wi-Fi Station
+  WiFi.mode(WIFI_STA);
+  // Init ESP-NOW
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("Error initializing ESP-NOW");
+    return;
+  }
+  esp_now_register_recv_cb(OnDataRecv);
+
   servoSetup(SERVO_PIN);
   servoSetAngle(0.0f);
 
@@ -151,7 +183,8 @@ void loop() {
       Serial.println("Pitch command received");
       enterState(GameState::PITCHING);
     }
-    else if ((cmd == 's' || cmd == 'S') && state == GameState::READY_TO_SWING) {
+    // else if ((cmd == 's' || cmd == 'S') && state == GameState::READY_TO_SWING) {
+    else if ((swingSignal == true) && state == GameState::READY_TO_SWING) {
       Serial.println("Swing command received");
       swingOccurred = true;
       servoMoveTo(270.0f, 5.0f);
