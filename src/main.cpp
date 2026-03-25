@@ -1,65 +1,117 @@
 #include <Arduino.h>
 #include "servo_control.h"
 
-static const int SERVO_PIN  = D6;
-static const int BEAM_PIN   = D2;
-static const int BUTTON_PIN = D3;
+// p starts pitch
+// after pitch delay, go to READY_TO_SWING
+// if s is pressed in time, servo swings and then waits for result
+// if s is not pressed in time, it still goes to WAITING_FOR_RESULT so the ball 
+// can naturally fall into the out pocket in WAITING_FOR_RESULT:
+// pocket 1 → points
+// pocket 2 → points
+// out pocket → OUT state, 0 points
+// nothing detected by timeout → ERROR_STATE
+
+static const int SERVO_PIN   = D6;
+static const int POCKET1_PIN = D2;
+static const int POCKET2_PIN = D4;
+static const int OUT_PIN     = D5;
+
+static const int POCKET1_POINTS = 10;
+static const int POCKET2_POINTS = 20;
 
 enum class GameState {
   IDLE,
   PITCHING,
   READY_TO_SWING,
   WAITING_FOR_RESULT,
-  RESETTING
+  OUT,
+  RESETTING,
+  ERROR_STATE
 };
 
 static GameState state = GameState::IDLE;
 
-// transition detect for breakbeam
-static bool prevBeamBlocked = false;
+// edge detect for sensors
+static bool prevPocket1Blocked = false;
+static bool prevPocket2Blocked = false;
+static bool prevOutBlocked     = false;
 
-// transition detect for button
-static bool prevButtonPressed = false;
-
-// pitch delay after button press
+// timers
 static unsigned long pitchStartTime = 0;
 static const unsigned long PITCH_DELAY_MS = 2000;
 
-// result timeout after swing starts
+static unsigned long readySwingStartTime = 0;
+static const unsigned long SWING_TIMEOUT_MS = 3000;
+
 static unsigned long resultStartTime = 0;
 static const unsigned long RESULT_TIMEOUT_MS = 10000;
 
-bool beamIsBlocked() {
-  return digitalRead(BEAM_PIN) == LOW;
+// whether the servo actually swung this round
+static bool swingOccurred = false;
+
+// score
+static int totalScore = 0;
+
+bool pocket1Blocked() {
+  return digitalRead(POCKET1_PIN) == LOW;
 }
 
-bool buttonIsPressed() {
-  return digitalRead(BUTTON_PIN) == LOW;
+bool pocket2Blocked() {
+  return digitalRead(POCKET2_PIN) == LOW;
+}
+
+bool outBlocked() {
+  return digitalRead(OUT_PIN) == LOW;
 }
 
 void enterState(GameState newState) {
   state = newState;
 
   if (state == GameState::IDLE) {
+    swingOccurred = false;
     Serial.println("State: IDLE");
-    Serial.println("Press the physical button to release pitch");
+    Serial.println("Press p to pitch");
   }
   else if (state == GameState::PITCHING) {
     pitchStartTime = millis();
+    swingOccurred = false;
     Serial.println("State: PITCHING");
     Serial.println("Pitch released, waiting before swing...");
   }
   else if (state == GameState::READY_TO_SWING) {
+    readySwingStartTime = millis();
+    Serial.println("BALL HAS BEEN PITCHED");
     Serial.println("State: READY_TO_SWING");
     Serial.println("Press s to swing");
   }
   else if (state == GameState::WAITING_FOR_RESULT) {
     resultStartTime = millis();
-    prevBeamBlocked = beamIsBlocked();  // clear stale edge right when swing starts
+
+    // clear stale edges when result monitoring starts
+    prevPocket1Blocked = pocket1Blocked();
+    prevPocket2Blocked = pocket2Blocked();
+    prevOutBlocked     = outBlocked();
+
     Serial.println("State: WAITING_FOR_RESULT");
+  }
+  else if (state == GameState::OUT) {
+    Serial.println("State: OUT");
+    Serial.println("Ball fell into out pocket. 0 points.");
+
+    if (swingOccurred) {
+      servoMoveTo(0.0f, 5.0f);
+      enterState(GameState::RESETTING);
+    } else {
+      enterState(GameState::IDLE);
+    }
   }
   else if (state == GameState::RESETTING) {
     Serial.println("State: RESETTING");
+  }
+  else if (state == GameState::ERROR_STATE) {
+    Serial.println("State: ERROR");
+    Serial.println("No score pocket or out pocket detected before timeout.");
+    Serial.println("Press p to try again.");
   }
 }
 
@@ -70,62 +122,106 @@ void setup() {
   servoSetup(SERVO_PIN);
   servoSetAngle(0.0f);
 
-  pinMode(BEAM_PIN, INPUT_PULLUP);
-  prevBeamBlocked = beamIsBlocked();
+  pinMode(POCKET1_PIN, INPUT_PULLUP);
+  pinMode(POCKET2_PIN, INPUT_PULLUP);
+  pinMode(OUT_PIN, INPUT_PULLUP);
 
-  pinMode(BUTTON_PIN, INPUT_PULLUP);
-  prevButtonPressed = buttonIsPressed();
+  prevPocket1Blocked = pocket1Blocked();
+  prevPocket2Blocked = pocket2Blocked();
+  prevOutBlocked     = outBlocked();
+
+  Serial.println("Game starting...");
+  Serial.print("Total score: ");
+  Serial.println(totalScore);
 
   enterState(GameState::IDLE);
 }
 
 void loop() {
-  // 1. Read physical pitch-release button
-  bool buttonPressed = buttonIsPressed();
+  // serial commands:
+  // p = start pitch
+  // s = swing
+  // r = reset score
 
-  if (buttonPressed && !prevButtonPressed) {
-    Serial.println("BUTTON PRESSED");
-
-    if (state == GameState::IDLE) {
-      enterState(GameState::PITCHING);
-    }
-  }
-
-  prevButtonPressed = buttonPressed;
-
-  // 2. Read serial command for swing
   if (Serial.available() > 0) {
     char cmd = Serial.read();
 
-    if ((cmd == 's' || cmd == 'S') && state == GameState::READY_TO_SWING) {
+    if ((cmd == 'p' || cmd == 'P') &&
+        (state == GameState::IDLE || state == GameState::ERROR_STATE)) {
+      Serial.println("Pitch command received");
+      enterState(GameState::PITCHING);
+    }
+    else if ((cmd == 's' || cmd == 'S') && state == GameState::READY_TO_SWING) {
       Serial.println("Swing command received");
-      servoMoveTo(270.0f, 5.0f);
+      swingOccurred = true;
+      servoMoveTo(270.0f, 20.0f);
       enterState(GameState::WAITING_FOR_RESULT);
+    }
+    else if (cmd == 'r' || cmd == 'R') {
+      totalScore = 0;
+      Serial.println("Score reset to 0");
     }
   }
 
-  // 3. State machine
   if (state == GameState::PITCHING) {
     if (millis() - pitchStartTime >= PITCH_DELAY_MS) {
-      Serial.println("BALL HAS BEEN PITCHED");
       enterState(GameState::READY_TO_SWING);
     }
   }
+  else if (state == GameState::READY_TO_SWING) {
+    if (millis() - readySwingStartTime >= SWING_TIMEOUT_MS) {
+      Serial.println("No swing entered in time. Watching for ball result...");
+      enterState(GameState::WAITING_FOR_RESULT);
+    }
+  }
   else if (state == GameState::WAITING_FOR_RESULT) {
-    bool beamBlocked = beamIsBlocked();
+    bool p1Blocked = pocket1Blocked();
+    bool p2Blocked = pocket2Blocked();
+    bool outNow    = outBlocked();
 
-    if (beamBlocked && !prevBeamBlocked) {
-      Serial.println("HIT: breakbeam triggered");
-      servoMoveTo(0.0f, 5.0f);
-      enterState(GameState::RESETTING);
+    if (p1Blocked && !prevPocket1Blocked) {
+      totalScore += POCKET1_POINTS;
+      Serial.print("HIT: Pocket 1 triggered, +");
+      Serial.print(POCKET1_POINTS);
+      Serial.println(" points");
+      Serial.print("Total score: ");
+      Serial.println(totalScore);
+
+      if (swingOccurred) {
+        servoMoveTo(0.0f, 5.0f);
+        enterState(GameState::RESETTING);
+      } else {
+        enterState(GameState::IDLE);
+      }
+    }
+    else if (p2Blocked && !prevPocket2Blocked) {
+      totalScore += POCKET2_POINTS;
+      Serial.print("HIT: Pocket 2 triggered, +");
+      Serial.print(POCKET2_POINTS);
+      Serial.println(" points");
+      Serial.print("Total score: ");
+      Serial.println(totalScore);
+
+      if (swingOccurred) {
+        servoMoveTo(0.0f, 5.0f);
+        enterState(GameState::RESETTING);
+      } else {
+        enterState(GameState::IDLE);
+      }
+    }
+    else if (outNow && !prevOutBlocked) {
+      enterState(GameState::OUT);
     }
     else if (millis() - resultStartTime >= RESULT_TIMEOUT_MS) {
-      Serial.println("MISS: timeout, no breakbeam");
-      servoMoveTo(0.0f, 5.0f);
-      enterState(GameState::RESETTING);
+      if (swingOccurred) {
+        servoMoveTo(0.0f, 20.0f);
+      }
+      enterState(GameState::ERROR_STATE);
     }
 
-    prevBeamBlocked = beamBlocked;
+    prevPocket1Blocked = p1Blocked;
+    prevPocket2Blocked = p2Blocked;
+    prevOutBlocked     = outNow;
   }
   else if (state == GameState::RESETTING) {
     if (servoAtTarget()) {
@@ -133,6 +229,5 @@ void loop() {
     }
   }
 
-  // 4. Keep servo alive
   servoUpdate();
 }
