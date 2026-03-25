@@ -36,6 +36,8 @@ typedef struct struct_message {
     bool swing;
 } struct_message;
 
+struct_message myData;
+
 static bool swingSignal;
 static int velo;
 
@@ -49,8 +51,6 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
   velo = myData.velo;
   swingSignal = myData.swing;
 }
-
-struct_message myData;
 
 static GameState state = GameState::IDLE;
 
