@@ -10,6 +10,8 @@
 // pocket 2 → points
 // out pocket → OUT state, 0 points
 // nothing detected by timeout → ERROR_STATE
+// servo on 7V 3A separate power
+// breakbeams on 5V from external power
 
 static const int SERVO_PIN   = D6;
 static const int POCKET1_PIN = D2;
