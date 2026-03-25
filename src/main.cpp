@@ -154,7 +154,7 @@ void loop() {
     else if ((cmd == 's' || cmd == 'S') && state == GameState::READY_TO_SWING) {
       Serial.println("Swing command received");
       swingOccurred = true;
-      servoMoveTo(270.0f, 5.0f);
+      servoMoveTo(270.0f, 20.0f);
       enterState(GameState::WAITING_FOR_RESULT);
     }
     else if (cmd == 'r' || cmd == 'R') {
@@ -214,7 +214,7 @@ void loop() {
     }
     else if (millis() - resultStartTime >= RESULT_TIMEOUT_MS) {
       if (swingOccurred) {
-        servoMoveTo(0.0f, 5.0f);
+        servoMoveTo(0.0f, 20.0f);
       }
       enterState(GameState::ERROR_STATE);
     }
