@@ -1,46 +1,46 @@
 board: MKS-DLC32 V2.1
 name: DLC32_X_Min_Test
-
-kinematics:
-  Cartesian:
-
+kinematics: {}
 stepping:
   engine: I2S_STATIC
   idle_ms: 0
   pulse_us: 4
   dir_delay_us: 1
   disable_delay_us: 0
-
-# Required for DLC32 stepper sockets (I2S outputs)
 i2so:
   bck_pin: gpio.16
   data_pin: gpio.21
   ws_pin: gpio.17
-
 axes:
-  # Enable/disable line for stepstick sockets. Try without :low first.
-  shared_stepper_disable_pin: I2SO.0
+  shared_stepper_disable_pin: i2so.0
 
   x:
-    # keep your value for now; we'll calibrate later
-    steps_per_mm: 157.750
+    soft_limits: true
+    max_travel_mm: 125
 
-    # gentle so it won't stall while you're debugging
-    max_rate_mm_per_min: 1000.000
-    acceleration_mm_per_sec2: 50.000
+    steps_per_mm: 157.75
+    max_rate_mm_per_min: 8000
+    acceleration_mm_per_sec2: 300
 
-    # doesn't matter much with soft limits off
-    max_travel_mm: 400.000
-    soft_limits: false
-
-    # NO homing / NO limits for first test
     homing:
-      cycle: 0
+      cycle: 1
+      positive_direction: false
+      seek_mm_per_min: 4000
+      feed_mm_per_min: 600
+      settle_ms: 150
 
     motor0:
-      limit_neg_pin: NO_PIN
+      limit_neg_pin: gpio.36:low
       hard_limits: false
-      pulloff_mm: 1.000
+      pulloff_mm: 1
       stepstick:
-        step_pin: I2SO.1
-        direction_pin: I2SO.2
+        step_pin: i2so.1
+        direction_pin: i2so.2:low
+        disable_pin: NO_PIN
+        ms1_pin: NO_PIN
+        ms2_pin: NO_PIN
+        ms3_pin: NO_PIN
+      limit_pos_pin: NO_PIN
+      limit_all_pin: NO_PIN
+
+  homing_runs: 1
