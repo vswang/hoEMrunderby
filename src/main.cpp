@@ -98,7 +98,7 @@ int countBits(byte x) {
 }
 
 void printScoreboard() {
-  Serial.print("Scoreboard score: ");
+  Serial.print("Runs: ");
   Serial.println(baseballScore);
   Serial.print("Outs: ");
   Serial.println(outs);
@@ -111,34 +111,6 @@ void resetScoreboard() {
   bases = 0;
   baseballScore = 0;
   outs = 0;
-}
-
-void hit(int type) {
-  Serial.println("Hit detected!");
-
-  byte scoreMask = 0b1111000;
-
-  bases <<= (type + 1);
-  bases += (0b1 << type);
-
-  byte overflow = bases & scoreMask;
-  int runs = countBits(overflow);
-  baseballScore += runs;
-  bases &= 0x7;
-
-  Serial.print("Type: ");
-  Serial.println(hit_type[type]);
-  Serial.print("Runs scored: ");
-  Serial.println(runs);
-  Serial.print("Total score: ");
-  Serial.println(baseballScore);
-  Serial.print("Outs: ");
-  Serial.println(outs);
-  Serial.print("Bases: ");
-  Serial.println(bases, BIN);
-  Serial.println();
-
-  enterState(GameState::RESETTING);
 }
 
 bool pocket1Blocked() {
@@ -213,6 +185,34 @@ void enterState(GameState newState) {
   }
 }
 
+void hit(int type) {
+  Serial.println("Hit detected!");
+
+  byte scoreMask = 0b1111000;
+
+  bases <<= (type + 1);
+  bases += (0b1 << type);
+
+  byte overflow = bases & scoreMask;
+  int runs = countBits(overflow);
+  baseballScore += runs;
+  bases &= 0x7;
+
+  Serial.print("Type: ");
+  Serial.println(hit_type[type]);
+  Serial.print("Runs scored: ");
+  Serial.println(runs);
+  Serial.print("Total score: ");
+  Serial.println(baseballScore);
+  Serial.print("Outs: ");
+  Serial.println(outs);
+  Serial.print("Bases: ");
+  Serial.println(bases, BIN);
+  Serial.println();
+
+  enterState(GameState::RESETTING);
+}
+
 void setup() {
   Serial.begin(115200);
   delay(2000);
@@ -240,8 +240,8 @@ void setup() {
   prevOutBlocked     = outBlocked();
 
   Serial.println("Game starting...");
-  Serial.print("Total score: ");
-  Serial.println(totalScore);
+  // Serial.print("Total score: ");
+  // Serial.println(totalScore);
   printScoreboard();
 
   enterState(GameState::IDLE);
@@ -261,7 +261,7 @@ void loop() {
       enterState(GameState::PITCHING);
     }
     else if (cmd == 'r' || cmd == 'R') {
-      totalScore = 0;
+      // totalScore = 0;
       resetScoreboard();
       enterState(GameState::IDLE);
       Serial.println("Game reset.");
@@ -309,12 +309,13 @@ void loop() {
     bool outNow    = outBlocked();
 
     if (p1Blocked && !prevPocket1Blocked) {
-      totalScore += POCKET1_POINTS;
-      Serial.print("HIT: Pocket 1 triggered, +");
-      Serial.print(POCKET1_POINTS);
-      Serial.println(" points");
-      Serial.print("Total score: ");
-      Serial.println(totalScore);
+      // totalScore += POCKET1_POINTS;
+      // Serial.print("HIT: Pocket 1 triggered, +");
+      // Serial.print(POCKET1_POINTS);
+      // Serial.println(" points");
+      // Serial.print("Total score: ");
+      // Serial.println(totalScore);
+      hit(0); // use hit() function to handle scoring and state transition
 
       if (swingOccurred) {
         servoMoveTo(0.0f, 25.0f);          // CHANGED: faster reset step
@@ -324,12 +325,13 @@ void loop() {
       }
     }
     else if (p2Blocked && !prevPocket2Blocked) {
-      totalScore += POCKET2_POINTS;
-      Serial.print("HIT: Pocket 2 triggered, +");
-      Serial.print(POCKET2_POINTS);
-      Serial.println(" points");
-      Serial.print("Total score: ");
-      Serial.println(totalScore);
+      // totalScore += POCKET2_POINTS;
+      // Serial.print("HIT: Pocket 2 triggered, +");
+      // Serial.print(POCKET2_POINTS);
+      // Serial.println(" points");
+      // Serial.print("Total score: ");
+      // Serial.println(totalScore);
+      hit(1);
 
       if (swingOccurred) {
         servoMoveTo(0.0f, 25.0f);          // CHANGED: faster reset step
