@@ -32,8 +32,14 @@ enum class GameState {
   WAITING_FOR_RESULT,
   OUT,
   RESETTING,
+  GAME_OVER,
   ERROR_STATE
 };
+
+static byte bases = 0;   // 8-bit base state
+static unsigned char baseballScore = 0;
+static unsigned char outs = 0;
+static char hit_type[5] = "SDTH";
 
 // receiving the wireless signal
 typedef struct struct_message {
@@ -81,6 +87,60 @@ static bool swingOccurred = false;
 // score
 static int totalScore = 0;
 
+// baseball scoreboard state
+int countBits(byte x) {
+  int count = 0;
+  while (x) {
+    count += x & 1;
+    x >>= 1;
+  }
+  return count;
+}
+
+void printScoreboard() {
+  Serial.print("Scoreboard score: ");
+  Serial.println(baseballScore);
+  Serial.print("Outs: ");
+  Serial.println(outs);
+  Serial.print("Bases: ");
+  Serial.println(bases, BIN);
+  Serial.println();
+}
+
+void resetScoreboard() {
+  bases = 0;
+  baseballScore = 0;
+  outs = 0;
+}
+
+void hit(int type) {
+  Serial.println("Hit detected!");
+
+  byte scoreMask = 0b1111000;
+
+  bases <<= (type + 1);
+  bases += (0b1 << type);
+
+  byte overflow = bases & scoreMask;
+  int runs = countBits(overflow);
+  baseballScore += runs;
+  bases &= 0x7;
+
+  Serial.print("Type: ");
+  Serial.println(hit_type[type]);
+  Serial.print("Runs scored: ");
+  Serial.println(runs);
+  Serial.print("Total score: ");
+  Serial.println(baseballScore);
+  Serial.print("Outs: ");
+  Serial.println(outs);
+  Serial.print("Bases: ");
+  Serial.println(bases, BIN);
+  Serial.println();
+
+  enterState(GameState::RESETTING);
+}
+
 bool pocket1Blocked() {
   return digitalRead(POCKET1_PIN) == LOW;
 }
@@ -96,7 +156,11 @@ bool outBlocked() {
 void enterState(GameState newState) {
   state = newState;
 
-  if (state == GameState::IDLE) {
+  if (state == GameState::GAME_OVER) {
+    Serial.println("State: GAME_OVER");
+    Serial.println("GAME OVER! Press 'r' to restart.");
+  }
+  else if (state == GameState::IDLE) {
     swingOccurred = false;
     Serial.println("State: IDLE");
     Serial.println("Press p to pitch");
@@ -126,11 +190,16 @@ void enterState(GameState newState) {
   else if (state == GameState::OUT) {
     Serial.println("State: OUT");
     Serial.println("Ball fell into out pocket. 0 points.");
-
-    if (swingOccurred) {
+    outs += 1;
+    printScoreboard();
+    if (outs >= 3) {
+      enterState(GameState::GAME_OVER);
+    } 
+    else if (swingOccurred) {
       servoMoveTo(0.0f, 25.0f);             // CHANGED: faster reset step
       enterState(GameState::RESETTING);
-    } else {
+    } 
+    else {
       enterState(GameState::IDLE);
     }
   }
@@ -173,6 +242,7 @@ void setup() {
   Serial.println("Game starting...");
   Serial.print("Total score: ");
   Serial.println(totalScore);
+  printScoreboard();
 
   enterState(GameState::IDLE);
 }
@@ -192,7 +262,23 @@ void loop() {
     }
     else if (cmd == 'r' || cmd == 'R') {
       totalScore = 0;
-      Serial.println("Score reset to 0");
+      resetScoreboard();
+      enterState(GameState::IDLE);
+      Serial.println("Game reset.");
+    }
+    // THIS STILL NEEDS TO BE INTEGRATED WITH POCKET DETECTION
+    else if (state == GameState::WAITING_FOR_RESULT) {
+      if (cmd == 's') {
+        hit(0);
+      } else if (cmd == 'd') {
+        hit(1);
+      } else if (cmd == 't') {
+        hit(2);
+      } else if (cmd == 'h') {
+        hit(3);
+      } else if (cmd == 'o') {
+        enterState(GameState::OUT);
+      }
     }
   }
 
