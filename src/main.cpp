@@ -4,8 +4,7 @@
 #include <WiFi.h>
 
 /*** IMPORTANT!!
-If Adafruit_MCP23X17 conflicts with ESP32 pin macros in your setup,
-keep the header fix your teammate found.
+header fix?
 ***/
 #include <Wire.h>
 #include <Adafruit_MCP23X17.h>
@@ -42,6 +41,18 @@ static const int I2C_SCL_PIN = A5;
 #define SECOND_BASE_LED  9   // B1
 #define THIRD_BASE_LED   10  // B2
 
+// Port B: keypad buttons
+// Keypad wiring:
+// R1 (keypad pin 1) -> GND
+// C1 (keypad pin 5) -> B4 -> key "1"
+// C2 (keypad pin 6) -> B5 -> key "2"
+// C3 (keypad pin 7) -> B6 -> key "3"
+// C4 (keypad pin 8) -> B7 -> key "A"
+#define KEY_1_PIN        12   // B4
+#define KEY_2_PIN        13   // B5
+#define KEY_3_PIN        14   // B6
+#define KEY_A_PIN        15   // B7 = Pitch Now
+
 Adafruit_MCP23X17 mcp;
 
 // =====================================================
@@ -69,6 +80,9 @@ static byte bases = 0;   // bit0=1st, bit1=2nd, bit2=3rd
 static unsigned char runs = 0;
 static unsigned char outs = 0;
 static char hit_type[5] = "SDTH";
+
+// keypad-selected pitch type
+static int selectedPitch = 1;
 
 // =====================================================
 // ESPNOW / SWING INPUT
@@ -112,6 +126,12 @@ static bool prevTriple2Blocked = false;
 
 static bool prevHomerBlocked = false;
 static bool prevOutBlocked = false;
+
+// keypad edge tracking
+static bool prevKey1Pressed = false;
+static bool prevKey2Pressed = false;
+static bool prevKey3Pressed = false;
+static bool prevKeyAPressed = false;
 
 // =====================================================
 // TIMERS
@@ -182,6 +202,12 @@ bool triple2Blocked() { return mcp.digitalRead(TRIPLE2_PIN) == LOW; }
 bool homerBlocked()   { return mcp.digitalRead(HOMER_PIN) == LOW; }
 bool outBlocked()     { return mcp.digitalRead(OUT_PIN) == LOW; }
 
+// keypad helpers
+bool key1Pressed() { return mcp.digitalRead(KEY_1_PIN) == LOW; }
+bool key2Pressed() { return mcp.digitalRead(KEY_2_PIN) == LOW; }
+bool key3Pressed() { return mcp.digitalRead(KEY_3_PIN) == LOW; }
+bool keyAPressed() { return mcp.digitalRead(KEY_A_PIN) == LOW; }
+
 // =====================================================
 // AUDIO PLACEHOLDERS
 // =====================================================
@@ -206,13 +232,17 @@ void enterState(GameState newState) {
   else if (state == GameState::IDLE) {
     swingOccurred = false;
     Serial.println("State: IDLE");
-    Serial.println("Press p to pitch");
+    Serial.println("Press p or keypad A to pitch");
   }
   else if (state == GameState::PITCHING) {
     pitchStartTime = millis();
     swingOccurred = false;
-    Serial.println("State: PITCHING");
+    Serial.print("State: PITCHING");
+    Serial.print(" | Selected pitch = ");
+    Serial.println(selectedPitch);
     Serial.println("Pitch released, waiting before swing...");
+
+    // later: send selectedPitch to gantry over UART here
   }
   else if (state == GameState::READY_TO_SWING) {
     readySwingStartTime = millis();
@@ -261,7 +291,7 @@ void enterState(GameState newState) {
   else if (state == GameState::ERROR_STATE) {
     Serial.println("State: ERROR");
     Serial.println("No score pocket or out pocket detected before timeout.");
-    Serial.println("Press p to try again.");
+    Serial.println("Press p or keypad A to try again.");
   }
 }
 
@@ -344,6 +374,12 @@ void setup() {
   mcp.digitalWrite(SECOND_BASE_LED, LOW);
   mcp.digitalWrite(THIRD_BASE_LED, LOW);
 
+  // Keypad buttons on Port B as inputs with pullups
+  mcp.pinMode(KEY_1_PIN, INPUT_PULLUP);
+  mcp.pinMode(KEY_2_PIN, INPUT_PULLUP);
+  mcp.pinMode(KEY_3_PIN, INPUT_PULLUP);
+  mcp.pinMode(KEY_A_PIN, INPUT_PULLUP);
+
   prevSingle1Blocked = single1Blocked();
   prevSingle2Blocked = single2Blocked();
 
@@ -356,7 +392,13 @@ void setup() {
   prevHomerBlocked = homerBlocked();
   prevOutBlocked = outBlocked();
 
+  prevKey1Pressed = key1Pressed();
+  prevKey2Pressed = key2Pressed();
+  prevKey3Pressed = key3Pressed();
+  prevKeyAPressed = keyAPressed();
+
   Serial.println("Game starting...");
+  Serial.println("Keypad: 1/2/3 select pitch, A = pitch now");
   printScoreboard();
   enterState(GameState::IDLE);
 }
@@ -366,19 +408,59 @@ void setup() {
 // =====================================================
 
 void loop() {
-  // serial commands:
+  // ---------------------------------
+  // KEYPAD INPUTS (via MCP23017)
+  // 1 = pitch type 1
+  // 2 = pitch type 2
+  // 3 = pitch type 3
+  // A = pitch now
+  // ---------------------------------
+
+  bool key1Now = key1Pressed();
+  bool key2Now = key2Pressed();
+  bool key3Now = key3Pressed();
+  bool keyANow = keyAPressed();
+
+  if (key1Now && !prevKey1Pressed) {
+    selectedPitch = 1;
+    Serial.println("Selected pitch: 1");
+  }
+  else if (key2Now && !prevKey2Pressed) {
+    selectedPitch = 2;
+    Serial.println("Selected pitch: 2");
+  }
+  else if (key3Now && !prevKey3Pressed) {
+    selectedPitch = 3;
+    Serial.println("Selected pitch: 3");
+  }
+  else if (keyANow && !prevKeyAPressed &&
+           (state == GameState::IDLE || state == GameState::ERROR_STATE)) {
+    Serial.print("Pitch now pressed. Selected pitch = ");
+    Serial.println(selectedPitch);
+    enterState(GameState::PITCHING);
+  }
+
+  prevKey1Pressed = key1Now;
+  prevKey2Pressed = key2Now;
+  prevKey3Pressed = key3Now;
+  prevKeyAPressed = keyANow;
+
+  // ---------------------------------
+  // SERIAL COMMANDS
   // p = pitch
   // r = reset
   // w = manual swing
   // while waiting for result:
   // s,d,t,h,o = manual result test
+  // ---------------------------------
 
   if (Serial.available() > 0) {
     char cmd = Serial.read();
 
     if ((cmd == 'p' || cmd == 'P') &&
         (state == GameState::IDLE || state == GameState::ERROR_STATE)) {
-      Serial.println("Pitch command received");
+      Serial.print("Pitch command received. Selected pitch = ");
+      Serial.println(selectedPitch);
       enterState(GameState::PITCHING);
     }
     else if ((cmd == 'w' || cmd == 'W') && state == GameState::READY_TO_SWING) {
