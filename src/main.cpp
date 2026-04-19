@@ -2,6 +2,8 @@
 #include "servo_control.h"
 #include <esp_now.h>
 #include <WiFi.h>
+#include <Adafruit_GFX.h>
+#include "Adafruit_LEDBackpack.h"
 
 /*** IMPORTANT!!
 header fix?
@@ -54,6 +56,8 @@ static const int I2C_SCL_PIN = A5;
 #define KEY_A_PIN        15   // B7 = Pitch Now
 
 Adafruit_MCP23X17 mcp;
+
+Adafruit_7segment matrix = Adafruit_7segment();
 
 // =====================================================
 // GAME STATE
@@ -171,6 +175,19 @@ void updateBaseLeds() {
   mcp.digitalWrite(THIRD_BASE_LED,  (bases & 0b100) ? HIGH : LOW);
 }
 
+void displayScore() {
+  // Display score on left two digits (positions 0, 1)
+  if (runs > 9) {
+    matrix.writeDigitNum(0, runs / 10);    // Only display tens place when necessary
+  }
+  matrix.writeDigitNum(1, runs % 10); 
+  // Keep colon empty
+  matrix.drawColon(false);
+  matrix.writeDigitNum(4, outs);
+  // Update the physical display
+  matrix.writeDisplay();
+}
+
 void printScoreboard() {
   Serial.print("Runs: ");
   Serial.println(runs);
@@ -181,6 +198,7 @@ void printScoreboard() {
   Serial.println();
 
   updateBaseLeds();
+  displayScore();
 }
 
 void resetScoreboard() {
@@ -188,6 +206,7 @@ void resetScoreboard() {
   runs = 0;
   outs = 0;
   updateBaseLeds();
+  displayScore();
 }
 
 bool single1Blocked() { return mcp.digitalRead(SINGLE1_PIN) == LOW; }
@@ -312,17 +331,9 @@ void hit(int type) {
   runs += countBits(overflow);
   bases &= 0x7;
 
-  Serial.print("Type: ");
+  Serial.print("Hit Type: ");
   Serial.println(hit_type[type]);
-  Serial.print("Runs scored total: ");
-  Serial.println(runs);
-  Serial.print("Outs: ");
-  Serial.println(outs);
-  Serial.print("Bases: ");
-  Serial.println(bases, BIN);
-  Serial.println();
-
-  updateBaseLeds();
+  printScoreboard();
 }
 
 // =====================================================
@@ -351,6 +362,13 @@ void setup() {
     Serial.println("Error initializing MCP23017");
     while (1) { delay(10); }
   }
+  
+  if (!matrix.begin(0x70)) {
+    Serial.println("Seven segment display not found. Check wiring!");
+  }
+  matrix.begin(0x70);
+  matrix.setBrightness(15); // 0 is lowest, 15 is highest
+  displayScore();
 
   // Pocket sensors on Port A as inputs with pullups
   mcp.pinMode(SINGLE1_PIN, INPUT_PULLUP);
