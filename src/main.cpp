@@ -2,14 +2,19 @@
 #include "servo_control.h"
 #include <esp_now.h>
 #include <WiFi.h>
+#include <HardwareSerial.h>
+#include <DFRobotDFPlayerMini.h>
 #include <Adafruit_GFX.h>
 #include "Adafruit_LEDBackpack.h"
 
-/*** IMPORTANT!!
-header fix?
-***/
 #include <Wire.h>
 #include <Adafruit_MCP23X17.h>
+
+HardwareSerial dfSerial(2);
+DFRobotDFPlayerMini dfplayer;
+
+const int DF_RX = D9;   // ESP receives from DFPlayer TX
+const int DF_TX = D10;   // ESP sends to DFPlayer RX
 
 // =====================================================
 // ESP32 PINS
@@ -20,6 +25,7 @@ static const int SERVO_PIN = D6;
 // I2C pins for Nano ESP32
 static const int I2C_SDA_PIN = A4;
 static const int I2C_SCL_PIN = A5;
+static const int TEST_SINGLE1_PIN = D2;
 
 // =====================================================
 // MCP23017 PIN MAP
@@ -29,7 +35,7 @@ static const int I2C_SCL_PIN = A5;
 // =====================================================
 
 // Port A: pocket sensors
-#define SINGLE1_PIN  0   // A0 yellow
+#define SINGLE1_PIN  15   // A0 yellow
 #define SINGLE2_PIN  1   // A1 green
 #define DOUBLE1_PIN  2   // A2 brown
 #define DOUBLE2_PIN  3   // A3 purple
@@ -43,6 +49,7 @@ static const int I2C_SCL_PIN = A5;
 #define SECOND_BASE_LED  9   // B1
 #define THIRD_BASE_LED   10  // B2
 
+
 // Port B: keypad buttons
 // Keypad wiring:
 // R1 (keypad pin 1) -> GND
@@ -50,10 +57,10 @@ static const int I2C_SCL_PIN = A5;
 // C2 (keypad pin 6) -> B5 -> key "2"
 // C3 (keypad pin 7) -> B6 -> key "3"
 // C4 (keypad pin 8) -> B7 -> key "A"
-#define KEY_1_PIN        12   // B4
-#define KEY_2_PIN        13   // B5
-#define KEY_3_PIN        14   // B6
-#define KEY_A_PIN        15   // B7 = Pitch Now
+#define KEY_1_PIN        11   // B4
+#define KEY_2_PIN        12   // B5
+#define KEY_3_PIN        13   // B6
+#define KEY_A_PIN        14   // B7 = Pitch Now
 
 Adafruit_MCP23X17 mcp;
 
@@ -209,7 +216,8 @@ void resetScoreboard() {
   displayScore();
 }
 
-bool single1Blocked() { return mcp.digitalRead(SINGLE1_PIN) == LOW; }
+// bool single1Blocked() { return mcp.digitalRead(SINGLE1_PIN) == LOW; }
+bool single1Blocked() { return digitalRead(TEST_SINGLE1_PIN) == LOW; }
 bool single2Blocked() { return mcp.digitalRead(SINGLE2_PIN) == LOW; }
 
 bool double1Blocked() { return mcp.digitalRead(DOUBLE1_PIN) == LOW; }
@@ -230,12 +238,11 @@ bool keyAPressed() { return mcp.digitalRead(KEY_A_PIN) == LOW; }
 // =====================================================
 // AUDIO PLACEHOLDERS
 // =====================================================
-
-void playAudioSingle()   { Serial.println("[AUDIO] Single"); }
-void playAudioDouble()   { Serial.println("[AUDIO] Double"); }
-void playAudioTriple()   { Serial.println("[AUDIO] Triple"); }
-void playAudioHomeRun()  { Serial.println("[AUDIO] Home Run"); }
-void playAudioOut()      { Serial.println("[AUDIO] Out"); }
+void playAudioSingle()  { Serial.println("[AUDIO] Single");   dfplayer.play(1); }
+void playAudioDouble()  { Serial.println("[AUDIO] Double");   dfplayer.play(2); }
+void playAudioTriple()  { Serial.println("[AUDIO] Triple");   dfplayer.play(3); }
+void playAudioHomeRun() { Serial.println("[AUDIO] Home Run"); dfplayer.play(4); }
+void playAudioOut()     { Serial.println("[AUDIO] Out");      dfplayer.play(5); }
 
 // =====================================================
 // STATE ENTRY
@@ -355,6 +362,16 @@ void setup() {
   servoSetup(SERVO_PIN);
   servoSetAngle(0.0f);
 
+  dfSerial.begin(9600, SERIAL_8N1, DF_RX, DF_TX);
+  delay(1000);
+
+  if (!dfplayer.begin(dfSerial, true, true)) {
+    Serial.println("DFPlayer begin FAILED");
+  } else {
+    Serial.println("DFPlayer begin OK");
+    dfplayer.volume(20);   // 0-30
+  }
+
   // I2C on Nano ESP32
   Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
 
@@ -362,6 +379,7 @@ void setup() {
     Serial.println("Error initializing MCP23017");
     while (1) { delay(10); }
   }
+  pinMode(TEST_SINGLE1_PIN, INPUT_PULLUP);
   
   if (!matrix.begin(0x70)) {
     Serial.println("Seven segment display not found. Check wiring!");
@@ -371,7 +389,7 @@ void setup() {
   displayScore();
 
   // Pocket sensors on Port A as inputs with pullups
-  mcp.pinMode(SINGLE1_PIN, INPUT_PULLUP);
+  //mcp.pinMode(SINGLE1_PIN, INPUT_PULLUP);
   mcp.pinMode(SINGLE2_PIN, INPUT_PULLUP);
 
   mcp.pinMode(DOUBLE1_PIN, INPUT_PULLUP);
