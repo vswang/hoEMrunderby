@@ -10,21 +10,24 @@
 #include <Wire.h>
 #include <Adafruit_MCP23X17.h>
 
-HardwareSerial dfSerial(2);
-DFRobotDFPlayerMini dfplayer;
-
-const int DF_RX = 20;   // ESP receives from DFPlayer TX
-const int DF_TX = 20;   // ESP sends to DFPlayer RX
-
 // =====================================================
 // ESP32 PINS
 // =====================================================
 
-static const int SERVO_PIN = 9;
+static const int SERVO_PIN = 9; // D6 = GPIO 9
+
+static const int GANTRY_TX = 2; // D1 = GPIO 2
+static const int GANTRY_RX = 1; // D0 = GPIO 1
+
+static const int DF_RX = 20;   // ESP receives from DFPlayer TX, D9 = GPIO 18
+static const int DF_TX = 21;   // ESP sends to DFPlayer RX, D10 = GPIO 21
 
 // I2C pins for Nano ESP32
-static const int I2C_SDA_PIN = A4;
-static const int I2C_SCL_PIN = A5;
+static const int I2C_SDA_PIN = A4; // analog works for now
+static const int I2C_SCL_PIN = A5; // analog works for now
+
+HardwareSerial dfSerial(2);
+DFRobotDFPlayerMini dfplayer;
 
 // =====================================================
 // MCP23017 PIN MAP
@@ -356,7 +359,7 @@ void setup() {
     return;
   }
   esp_now_register_recv_cb(OnDataRecv);
-
+  
   servoSetup(SERVO_PIN);
   servoSetAngle(90.0f);
 
