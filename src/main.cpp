@@ -13,19 +13,18 @@
 HardwareSerial dfSerial(2);
 DFRobotDFPlayerMini dfplayer;
 
-const int DF_RX = D9;   // ESP receives from DFPlayer TX
-const int DF_TX = D10;   // ESP sends to DFPlayer RX
+const int DF_RX = 20;   // ESP receives from DFPlayer TX
+const int DF_TX = 20;   // ESP sends to DFPlayer RX
 
 // =====================================================
 // ESP32 PINS
 // =====================================================
 
-static const int SERVO_PIN = D6;
+static const int SERVO_PIN = 9;
 
 // I2C pins for Nano ESP32
 static const int I2C_SDA_PIN = A4;
 static const int I2C_SCL_PIN = A5;
-static const int TEST_SINGLE1_PIN = D2;
 
 // =====================================================
 // MCP23017 PIN MAP
@@ -35,7 +34,7 @@ static const int TEST_SINGLE1_PIN = D2;
 // =====================================================
 
 // Port A: pocket sensors
-#define SINGLE1_PIN  15   // A0 yellow
+#define SINGLE1_PIN  0   // A0 yellow
 #define SINGLE2_PIN  1   // A1 green
 #define DOUBLE1_PIN  2   // A2 brown
 #define DOUBLE2_PIN  3   // A3 purple
@@ -216,8 +215,7 @@ void resetScoreboard() {
   displayScore();
 }
 
-// bool single1Blocked() { return mcp.digitalRead(SINGLE1_PIN) == LOW; }
-bool single1Blocked() { return digitalRead(TEST_SINGLE1_PIN) == LOW; }
+bool single1Blocked() { return mcp.digitalRead(SINGLE1_PIN) == LOW; }
 bool single2Blocked() { return mcp.digitalRead(SINGLE2_PIN) == LOW; }
 
 bool double1Blocked() { return mcp.digitalRead(DOUBLE1_PIN) == LOW; }
@@ -304,7 +302,7 @@ void enterState(GameState newState) {
       enterState(GameState::GAME_OVER);
     } else {
       if (swingOccurred) {
-        servoMoveTo(0.0f, 25.0f);
+        servoMoveTo(90.0f, 25.0f);
         enterState(GameState::RESETTING);
       } else {
         enterState(GameState::IDLE);
@@ -360,7 +358,7 @@ void setup() {
   esp_now_register_recv_cb(OnDataRecv);
 
   servoSetup(SERVO_PIN);
-  servoSetAngle(0.0f);
+  servoSetAngle(90.0f);
 
   dfSerial.begin(9600, SERIAL_8N1, DF_RX, DF_TX);
   delay(1000);
@@ -379,7 +377,6 @@ void setup() {
     Serial.println("Error initializing MCP23017");
     while (1) { delay(10); }
   }
-  pinMode(TEST_SINGLE1_PIN, INPUT_PULLUP);
   
   if (!matrix.begin(0x70)) {
     Serial.println("Seven segment display not found. Check wiring!");
@@ -389,7 +386,7 @@ void setup() {
   displayScore();
 
   // Pocket sensors on Port A as inputs with pullups
-  //mcp.pinMode(SINGLE1_PIN, INPUT_PULLUP);
+  mcp.pinMode(SINGLE1_PIN, INPUT_PULLUP);
   mcp.pinMode(SINGLE2_PIN, INPUT_PULLUP);
 
   mcp.pinMode(DOUBLE1_PIN, INPUT_PULLUP);
@@ -514,25 +511,25 @@ void loop() {
       if (cmd == 's') {
         playAudioSingle();
         hit(0);
-        if (swingOccurred) servoMoveTo(0.0f, 25.0f);
+        if (swingOccurred) servoMoveTo(90.0f, 25.0f);
         enterState(GameState::RESETTING);
       }
       else if (cmd == 'd') {
         playAudioDouble();
         hit(1);
-        if (swingOccurred) servoMoveTo(0.0f, 25.0f);
+        if (swingOccurred) servoMoveTo(90.0f, 25.0f);
         enterState(GameState::RESETTING);
       }
       else if (cmd == 't') {
         playAudioTriple();
         hit(2);
-        if (swingOccurred) servoMoveTo(0.0f, 25.0f);
+        if (swingOccurred) servoMoveTo(90.0f, 25.0f);
         enterState(GameState::RESETTING);
       }
       else if (cmd == 'h') {
         playAudioHomeRun();
         hit(3);
-        if (swingOccurred) servoMoveTo(0.0f, 25.0f);
+        if (swingOccurred) servoMoveTo(90.0f, 25.0f);
         enterState(GameState::RESETTING);
       }
       else if (cmd == 'o') {
@@ -580,27 +577,27 @@ void loop() {
         (single2Now && !prevSingle2Blocked)) {
       playAudioSingle();
       hit(0);
-      if (swingOccurred) servoMoveTo(0.0f, 25.0f);
+      if (swingOccurred) servoMoveTo(90.0f, 25.0f);
       enterState(GameState::RESETTING);
     }
     else if ((double1Now && !prevDouble1Blocked) ||
              (double2Now && !prevDouble2Blocked)) {
       playAudioDouble();
       hit(1);
-      if (swingOccurred) servoMoveTo(0.0f, 25.0f);
+      if (swingOccurred) servoMoveTo(90.0f, 25.0f);
       enterState(GameState::RESETTING);
     }
     else if ((triple1Now && !prevTriple1Blocked) ||
              (triple2Now && !prevTriple2Blocked)) {
       playAudioTriple();
       hit(2);
-      if (swingOccurred) servoMoveTo(0.0f, 25.0f);
+      if (swingOccurred) servoMoveTo(90.0f, 25.0f);
       enterState(GameState::RESETTING);
     }
     else if (homerNow && !prevHomerBlocked) {
       playAudioHomeRun();
       hit(3);
-      if (swingOccurred) servoMoveTo(0.0f, 25.0f);
+      if (swingOccurred) servoMoveTo(90.0f, 25.0f);
       enterState(GameState::RESETTING);
     }
     else if (outNow && !prevOutBlocked) {
@@ -609,7 +606,7 @@ void loop() {
     }
     else if (millis() - resultStartTime >= RESULT_TIMEOUT_MS) {
       if (swingOccurred) {
-        servoMoveTo(0.0f, 25.0f);
+        servoMoveTo(90.0f, 25.0f);
       }
       enterState(GameState::ERROR_STATE);
     }
