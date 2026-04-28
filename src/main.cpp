@@ -27,6 +27,13 @@ DFRobotDFPlayerMini dfplayer;
 Adafruit_MCP23X17 mcp;
 Adafruit_7segment matrix = Adafruit_7segment();
 
+const char* ssid     = "FluidNC";
+const char* password = "hyongkim";
+const char* dlc32_ip = "192.168.0.1"; // DLC32 IP Address
+const uint16_t port  = 23;            // Standard Telnet Port for FluidNC
+
+WiFiClient client;
+
 // =====================================================
 // MCP23017 PIN MAP
 // A0..A7 = 0..7
@@ -56,6 +63,12 @@ Adafruit_7segment matrix = Adafruit_7segment();
 #define PITCH_4_BUTTON_PIN    15  // B7
 
 #define RESET_BUTTON_PIN      8   // D5 (on Arduino Nano ESP32)
+
+// G-code File Pitch Commands --> make sure that file names match
+const char* pitch_1  = "$LocalFS/Run=fastball.gcode";
+const char* pitch_2  = "$LocalFS/Run=changeup.gcode";
+const char* pitch_3  = "$LocalFS/Run=start_stop.gcode";
+const char* pitch_4  = "$H";
 
 // =====================================================
 // GAME STATE
@@ -324,6 +337,22 @@ void enterState(GameState newState) {
     Serial.print("State: PITCHING");
     Serial.print(" | Selected pitch = ");
     Serial.println(selectedPitch);
+
+    switch (selectedPitch) {
+      case 1:
+        client.println(pitch_1); 
+        break;
+      case 2:
+        client.println(pitch_2); 
+        break;
+      case 3:
+        client.println(pitch_3); 
+        break;
+      case 4:
+        client.println(pitch_4); 
+        break;
+    }
+    
     Serial.println("Pitch released, waiting before swing...");
   }
   else if (state == GameState::READY_TO_SWING) {
@@ -377,6 +406,14 @@ void setup() {
   delay(2000);
 
   WiFi.mode(WIFI_STA);
+
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting to DLC32...")
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nWiFi Connected to DLC32!");
 
   if (esp_now_init() != ESP_OK) {
     Serial.println("Error initializing ESP-NOW");
@@ -475,6 +512,16 @@ void loop() {
   bool pitch4Now = pitch4Pressed();
   bool pitchNowNow = pitchNowPressed();
   bool resetNow = resetPressed();
+  
+  if (!client.connected()) {
+    if (client.connect(dlc32_ip, port)) {
+      Serial.println("Telnet Connected!");
+    } 
+    else {
+      delay(500);
+      return;
+    }
+  }
 
   if (resetNow && !prevResetPressed) {
     Serial.println("Reset button pressed.");
@@ -510,6 +557,12 @@ void loop() {
   prevPitch4Pressed = pitch4Now;
   prevPitchNowPressed = pitchNowNow;
   prevResetPressed = resetNow;
+
+  // Print response from DLC32
+  if (client.available()) {
+    String response = client.readStringUntil('\n');
+    Serial.println("DLC32: " + response);
+  }
 
   // ---------------------------------
   // SERIAL COMMANDS
