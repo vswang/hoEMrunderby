@@ -53,7 +53,9 @@ Adafruit_7segment matrix = Adafruit_7segment();
 #define PITCH_1_BUTTON_PIN    12  // B4
 #define PITCH_2_BUTTON_PIN    13  // B5
 #define PITCH_3_BUTTON_PIN    14  // B6
-#define RESET_BUTTON_PIN      15  // B7
+#define PITCH_4_BUTTON_PIN    15  // B7
+
+#define RESET_BUTTON_PIN      8   // D5 (on Arduino Nano ESP32)
 
 // =====================================================
 // GAME STATE
@@ -129,6 +131,7 @@ static bool prevPitchNowPressed = false;
 static bool prevPitch1Pressed = false;
 static bool prevPitch2Pressed = false;
 static bool prevPitch3Pressed = false;
+static bool prevPitch4Pressed = false;
 static bool prevResetPressed = false;
 
 // =====================================================
@@ -177,6 +180,7 @@ bool pitchNowPressed() { return mcp.digitalRead(PITCH_NOW_BUTTON_PIN) == LOW; }
 bool pitch1Pressed()   { return mcp.digitalRead(PITCH_1_BUTTON_PIN) == LOW; }
 bool pitch2Pressed()   { return mcp.digitalRead(PITCH_2_BUTTON_PIN) == LOW; }
 bool pitch3Pressed()   { return mcp.digitalRead(PITCH_3_BUTTON_PIN) == LOW; }
+bool pitch4Pressed()   { return mcp.digitalRead(PITCH_4_BUTTON_PIN) == LOW; }
 bool resetPressed()    { return mcp.digitalRead(RESET_BUTTON_PIN) == LOW; }
 
 void updateBaseLeds() {
@@ -243,6 +247,7 @@ void fullManualReset() {
   prevPitch1Pressed = pitch1Pressed();
   prevPitch2Pressed = pitch2Pressed();
   prevPitch3Pressed = pitch3Pressed();
+  prevPitch4Pressed = pitch4Pressed();
   prevResetPressed = resetPressed();
 
   enterState(GameState::IDLE);
@@ -428,6 +433,7 @@ void setup() {
   mcp.pinMode(PITCH_1_BUTTON_PIN, INPUT_PULLUP);
   mcp.pinMode(PITCH_2_BUTTON_PIN, INPUT_PULLUP);
   mcp.pinMode(PITCH_3_BUTTON_PIN, INPUT_PULLUP);
+  mcp.pinMode(PITCH_4_BUTTON_PIN, INPUT_PULLUP);
   mcp.pinMode(RESET_BUTTON_PIN, INPUT_PULLUP);
 
   prevSingle1Blocked = single1Blocked();
@@ -443,6 +449,7 @@ void setup() {
   prevPitch1Pressed = pitch1Pressed();
   prevPitch2Pressed = pitch2Pressed();
   prevPitch3Pressed = pitch3Pressed();
+  prevPitch4Pressed = pitch4Pressed();
   prevResetPressed = resetPressed();
 
   Serial.println("Game starting...");
@@ -465,6 +472,7 @@ void loop() {
   bool pitch1Now = pitch1Pressed();
   bool pitch2Now = pitch2Pressed();
   bool pitch3Now = pitch3Pressed();
+  bool pitch4Now = pitch4Pressed();
   bool pitchNowNow = pitchNowPressed();
   bool resetNow = resetPressed();
 
@@ -485,6 +493,10 @@ void loop() {
     selectedPitch = 3;
     Serial.println("Selected pitch: 3");
   }
+  else if (pitch4Now && !prevPitch4Pressed) {
+    selectedPitch = 4;
+    Serial.println("Selected pitch: 4");
+  }
   else if (pitchNowNow && !prevPitchNowPressed &&
            (state == GameState::IDLE || state == GameState::ERROR_STATE)) {
     Serial.print("Pitch now pressed. Selected pitch = ");
@@ -495,6 +507,7 @@ void loop() {
   prevPitch1Pressed = pitch1Now;
   prevPitch2Pressed = pitch2Now;
   prevPitch3Pressed = pitch3Now;
+  prevPitch4Pressed = pitch4Now;
   prevPitchNowPressed = pitchNowNow;
   prevResetPressed = resetNow;
 
