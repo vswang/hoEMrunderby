@@ -68,7 +68,7 @@ WiFiClient client;
 const char* pitch_1  = "$LocalFS/Run=fastball.gcode";
 const char* pitch_2  = "$LocalFS/Run=changeup.gcode";
 const char* pitch_3  = "$LocalFS/Run=start_stop.gcode";
-const char* pitch_4  = "$H";
+const char* pitch_4  = "$LocalFS/Run=ramp.gcode";
 
 // =====================================================
 // GAME STATE
