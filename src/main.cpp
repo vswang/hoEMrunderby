@@ -62,7 +62,7 @@ WiFiClient client;
 #define PITCH_3_BUTTON_PIN    14  // B6
 #define PITCH_4_BUTTON_PIN    15  // B7
 
-#define RESET_BUTTON_PIN      8   // D5 (on Arduino Nano ESP32)
+#define RESET_BUTTON_PIN      7   // D7 (on Arduino Nano ESP32)
 
 // G-code File Pitch Commands --> make sure that file names match
 const char* pitch_1  = "$LocalFS/Run=fastball.gcode";
